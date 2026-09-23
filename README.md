@@ -263,7 +263,3 @@ The Grad-CAM engine (`tools/gradcam_engine.py`) is implemented from scratch in P
 This system is designed for **research and educational purposes only**. It is NOT a certified medical device and should NOT be used for actual clinical diagnosis. All AI-generated findings must be validated by qualified healthcare professionals.
 
 ---
-
-## License
-
-MIT License — Assessment Module for CAS/University Research Laboratory Evaluation

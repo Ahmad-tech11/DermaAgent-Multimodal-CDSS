@@ -33,7 +33,7 @@ Traditional computer-aided diagnosis (CAD) pipelines suffer from **black-box opa
 
 ## System Demonstration
 
-### 1. Grad-CAM Attention Alignment (Figure 1)
+### 1. Grad-CAM Attention Alignment
 
 Spatial visual attribution map verifying that deep feature activations correlate with active morphological pathology (scaly, erythematous margins) rather than spurious background artifacts.
 
@@ -43,7 +43,7 @@ Spatial visual attribution map verifying that deep feature activations correlate
   <em>Figure 1: Input dermoscopic lesion (left) and Grad-CAM visual feature attribution map (right), with peak localization at (182, 143) px.</em>
 </p>
 
-### 2. Autonomous Decision Support Interface (Figure 2)
+### 2. Autonomous Decision Support Interface 
 
 End-to-end clinical workflow: image acquisition, real-time visual saliency rendering, the agent's step-by-step reasoning trace, and the synthesized EHR-formatted diagnostic report.
 

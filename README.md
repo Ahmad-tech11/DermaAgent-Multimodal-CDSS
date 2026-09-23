@@ -38,7 +38,7 @@ Traditional computer-aided diagnosis (CAD) pipelines suffer from **black-box opa
 Spatial visual attribution map verifying that deep feature activations correlate with active morphological pathology (scaly, erythematous margins) rather than spurious background artifacts.
 
 <p align="center">
-  <img src="assets/figure1_gradcam_overlay.png" alt="Figure 1: Input Dermoscopic Image and Grad-CAM Saliency Overlay" width="700">
+  <img src="assets/figure1_gradcam_overlay.jpeg" alt="Figure 1: Input Dermoscopic Image and Grad-CAM Saliency Overlay" width="700">
   <br>
   <em>Figure 1: Input dermoscopic lesion (left) and Grad-CAM visual feature attribution map (right), with peak localization at (182, 143) px.</em>
 </p>
@@ -48,7 +48,7 @@ Spatial visual attribution map verifying that deep feature activations correlate
 End-to-end clinical workflow: image acquisition, real-time visual saliency rendering, the agent's step-by-step reasoning trace, and the synthesized EHR-formatted diagnostic report.
 
 <p align="center">
-  <img src="assets/figure2_system_ui.png" alt="Figure 2: DermaAgent Gradio Decision Support System" width="850">
+  <img src="assets/figure2_system_ui.jpeg" alt="Figure 2: DermaAgent Gradio Decision Support System" width="850">
   <br>
   <em>Figure 2: End-to-end Gradio decision-support interface displaying the autonomous reasoning trace and synthesized clinical findings.</em>
 </p>

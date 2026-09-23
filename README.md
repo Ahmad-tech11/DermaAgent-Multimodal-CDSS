@@ -8,16 +8,16 @@
 
 ## 📋 Table of Contents
 
-* [Overview](#overview)
-* [System Demonstration](#system-demonstration)
-* [Clinical Taxonomy (8-Class Space)](#clinical-taxonomy-8-class-space)
-* [Architecture & Workflow](#architecture--workflow)
-* [Empirical Validation & Results](#empirical-validation--results)
-* [Quick Start](#quick-start)
-* [Project Structure](#project-structure)
-* [Technical Grounding](#technical-grounding)
-* [Citation & Metadata](#citation--metadata)
-* [Disclaimer](#disclaimer)
+- [Overview](#overview)
+- [System Demonstration](#system-demonstration)
+- [Clinical Taxonomy (8-Class Space)](#clinical-taxonomy-8-class-space)
+- [Architecture & Workflow](#architecture--workflow)
+- [Empirical Validation & Results](#empirical-validation--results)
+- [Quick Start](#quick-start)
+- [Project Structure](#project-structure)
+- [Technical Grounding](#technical-grounding)
+- [Citation & Metadata](#citation--metadata)
+- [Disclaimer](#disclaimer)
 
 ---
 
@@ -59,16 +59,16 @@ End-to-end clinical workflow: image acquisition, real-time visual saliency rende
 
 The custom classification head maps deep inverted-residual features ($\mathbb{R}^{1280}$) to an 8-class diagnostic taxonomy:
 
-| Index |  Abbr.  | Diagnostic Class              | Etiological Nature                         |  Typical Severity |
-| :---: | :-----: | :---------------------------- | :----------------------------------------- | :---------------: |
-|   0   |  **cp** | Chickenpox                    | Varicella-zoster viral infection           |    ⚠️ Moderate    |
-|   1   | **clm** | Cutaneous Larva Migrans       | Parasitic hookworm skin eruption           |    ⚠️ Moderate    |
-|   2   |  **af** | Athlete Foot (*Tinea pedis*)  | Superficial fungal dermatophytosis         |    ⚠️ Moderate    |
-|   3   | **imp** | Impetigo                      | Superficial bacterial pyoderma             |    ⚠️ Moderate    |
-|   4   |  **nf** | Nail Fungus (*Onychomycosis*) | Subungual fungal invasion                  | 🟢 Low / Moderate |
-|   5   | **cel** | Cellulitis                    | Deep bacterial dermis/subcutis infection   |  🔴 High (Urgent) |
-|   6   |  **sh** | Shingles (*Herpes zoster*)    | Viral reactivation / dermatomal neuropathy |      🔴 High      |
-|   7   |  **rw** | Ringworm (*Tinea corporis*)   | Annular fungal lesion                      |    ⚠️ Moderate    |
+| Index | Abbr. | Diagnostic Class | Etiological Nature | Typical Severity |
+|:-----:|:-----:|:-----------------|:-------------------|:-----------------:|
+| 0 | **cp** | Chickenpox | Varicella-zoster viral infection | ⚠️ Moderate |
+| 1 | **clm** | Cutaneous Larva Migrans | Parasitic hookworm skin eruption | ⚠️ Moderate |
+| 2 | **af** | Athlete Foot (*Tinea pedis*) | Superficial fungal dermatophytosis | ⚠️ Moderate |
+| 3 | **imp** | Impetigo | Superficial bacterial pyoderma | ⚠️ Moderate |
+| 4 | **nf** | Nail Fungus (*Onychomycosis*) | Subungual fungal invasion | 🟢 Low / Moderate |
+| 5 | **cel** | Cellulitis | Deep bacterial dermis/subcutis infection | 🔴 High (Urgent) |
+| 6 | **sh** | Shingles (*Herpes zoster*) | Viral reactivation / dermatomal neuropathy | 🔴 High |
+| 7 | **rw** | Ringworm (*Tinea corporis*) | Annular fungal lesion | ⚠️ Moderate |
 
 *Severity labels are general clinical triage categories used by the system's design, not per-class empirical test results — only Athlete Foot (index 2) has a validated test run so far (see below).*
 
@@ -117,11 +117,11 @@ The custom classification head maps deep inverted-residual features ($\mathbb{R}
 
 Live end-to-end run on a representative dermoscopic test image (`_uploaded_image.png`):
 
-* **Primary Classification**: Athlete Foot (`af`) — **97.5% confidence**
-* **Differential Diagnoses**: Cutaneous Larva Migrans (1.8%), Ringworm (0.3%)
-* **Inter-Class Margin**: ΔP = 97.5% − 1.8% = **95.7%**
-* **Peak Activation Coordinates**: `(182, 143) px` (center-right anatomical sector), peak intensity 0.6596
-* **Area Coverage Ratio ($C_{>0.5}$)**: **10.9%** — categorized as *Highly Focused*
+- **Primary Classification**: Athlete Foot (`af`) — **97.5% confidence**
+- **Differential Diagnoses**: Cutaneous Larva Migrans (1.8%), Ringworm (0.3%)
+- **Inter-Class Margin**: ΔP = 97.5% − 1.8% = **95.7%**
+- **Peak Activation Coordinates**: `(182, 143) px` (center-right anatomical sector), peak intensity 0.6596
+- **Area Coverage Ratio ($C_{>0.5}$)**: **10.9%** — categorized as *Highly Focused*
 
 Full methodology, mathematical derivations, and the complete synthesized EHR report are documented in `DermaAgent_Academic_Technical_Report_Muhammad_Ahmad.pdf`.
 
@@ -191,27 +191,33 @@ DermaAgent-Multimodal-CDSS/
 
 ### 1. Saliency Weighting (Grad-CAM)
 
-\(\alpha_k^c = \frac{1}{Z} \sum_{i} \sum_{j} \frac{\partial Y^c}{\partial A_{ij}^k}\)
+$$
+\alpha_k^c = \frac{1}{Z} \sum_{i} \sum_{j} \frac{\partial Y^c}{\partial A_{ij}^k}
+$$
 
-\(L_{\text{Grad-CAM}}^c = \text{ReLU}\left( \sum_{k} \alpha_k^c A^k \right)\)
+$$
+L_{\text{Grad-CAM}}^c = \text{ReLU}\left( \sum_{k} \alpha_k^c A^k \right)
+$$
 
 ### 2. Saliency Concentration Metric ($C_{>0.5}$)
 
-\(C_{>0.5} = \frac{1}{N_{\text{total}}} \sum_{u} \sum_{v} \mathbb{I}\left[ L_{\text{norm}}^c(u, v) > 0.5 \right] \times 100\%\)
+$$
+C_{>0.5} = \frac{1}{N_{\text{total}}} \sum_{u} \sum_{v} \mathbb{I}\left[ L_{\text{norm}}^c(u, v) > 0.5 \right] \times 100\%
+$$
 
-* **Highly Focused**: $C_{>0.5} < 15%$
-* **Moderately Focused**: $15% \le C_{>0.5} < 35%$
-* **Diffuse Attention / Artifact Suspect**: $C_{>0.5} \ge 35%$
+- **Highly Focused**: $C_{>0.5} < 15\%$
+- **Moderately Focused**: $15\% \le C_{>0.5} < 35\%$
+- **Diffuse Attention / Artifact Suspect**: $C_{>0.5} \ge 35\%$
 
 ---
 
 ## Citation & Metadata
 
-* **Author**: Muhammad Ahmad
-* **Affiliation**: Department of Computer Science, COMSATS University Islamabad
-* **Repository**: https://github.com/Ahmad-tech11/DermaAgent-Multimodal-CDSS
-* **Document Reference**: `DermaAgent_Academic_Technical_Report_Muhammad_Ahmad.pdf`
-* **Supported Backends**: Groq Cloud API (`qwen/qwen3.8-27b`)
+- **Author**: Muhammad Ahmad
+- **Affiliation**: Department of Computer Science, COMSATS University Islamabad
+- **Repository**: https://github.com/Ahmad-tech11/DermaAgent-Multimodal-CDSS
+- **Document Reference**: `DermaAgent_Academic_Technical_Report_Muhammad_Ahmad.pdf`
+- **Supported Backends**: Groq Cloud API (`qwen/qwen3.8-27b`)
 
 ---
 

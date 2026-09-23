@@ -75,38 +75,34 @@ The custom classification head maps deep inverted-residual features ($\mathbb{R}
 ---
 
 ## Architecture & Workflow
-┌─────────────────────────────────────────────────────────────┐
-│ Patient Query + Lesion Image │
-└──────────────────────────────┬────────────────────────────────┘
-│
-▼
-┌─────────────────────────────────────────────────────────────┐
-│ DermaAgent (LangChain ReAct Agent) │
-│ ┌───────────────────────────────────────────────────────┐ │
-│ │ Thought_t → Action_t → Observation_t → ... → Report │ │
-│ └───────────────────────────────────────────────────────┘ │
-│ │ │ │
-│ ▼ ▼ │
-│ ┌────────────────────────┐ ┌─────────────────────────┐ │
-│ │ skin_lesion_classifier │ │ gradcam_visual_explainer │ │
-│ │ (MobileNetV2 Backbone) │ │ (Target Class Gradient) │ │
-│ └────────────┬───────────┘ └────────────┬──────────────┘ │
-│ │ │ │
-│ ▼ ▼ │
-│ Top-3 Ranked Differentials Spatial Saliency Metric │
-│ + Logit Confidence Margin Peak (x, y) + Area C>0.5 │
-└──────────────────────────────┬────────────────────────────────┘
-│
-▼
-┌─────────────────────────────────────────────────────────────┐
-│ Structured 6-Section EHR Clinical Diagnostic Assessment │
-│ • Section I — Clinical Indication & Query Formulation │
-│ • Section II — Quantitative Classification & Differentials │
-│ • Section III — Statistical Confidence & Gap Margin Analysis │
-│ • Section IV — Saliency Localization & Morphological Match │
-│ • Section V — Clinical Triage & Pharmacological Protocol │
-│ • Section VI — Regulatory & Medicolegal Disclaimer │
-└─────────────────────────────────────────────────────────────┘
+┌─────────────────────────────────────────────┐
+│         Patient Query + Lesion Image         │
+└───────────────────────┬───────────────────────┘
+                         │
+                         ▼
+┌─────────────────────────────────────────────┐
+│        DermaAgent (LangChain ReAct Agent)     │
+│   Thought_t → Action_t → Observation_t → ...  │
+│                    │       │                  │
+│                    ▼       ▼                  │
+│   skin_lesion_classifier   gradcam_visual_explainer │
+│   (MobileNetV2 Backbone)   (Target Class Gradient)  │
+│                    │       │                  │
+│                    ▼       ▼                  │
+│   Top-3 Ranked Differentials   Spatial Saliency Metric │
+│   + Logit Confidence Margin    Peak (x, y) + Area C>0.5│
+└───────────────────────┬───────────────────────┘
+                         │
+                         ▼
+┌─────────────────────────────────────────────┐
+│  Structured 6-Section EHR Clinical Report     │
+│  • Section I   — Clinical Indication          │
+│  • Section II  — Quantitative Classification  │
+│  • Section III — Statistical Confidence       │
+│  • Section IV  — Saliency Localization        │
+│  • Section V   — Clinical Triage Protocol     │
+│  • Section VI  — Regulatory Disclaimer        │
+└─────────────────────────────────────────────┘
 
 ---
 
@@ -164,22 +160,21 @@ python demo.py --cli --image path/to/lesion.png
 ## Project Structure
 
 DermaAgent-Multimodal-CDSS/
-├── agent.py # LangChain ReAct agent & prompt engineering
-├── demo.py # Dual-mode Gradio interface and CLI harness
-├── requirements.txt # Production dependencies
-├── .env.example # Environment template
-├── README.md # Project documentation
-├── assets/ # Architectural diagrams & evaluation screenshots
-│ ├── figure1_gradcam_overlay.png
-│ └── figure2_system_ui.png
+├── agent.py               # LangChain ReAct agent & prompt engineering
+├── demo.py                # Dual-mode Gradio interface and CLI harness
+├── requirements.txt       # Production dependencies
+├── .env.example            # Environment template
+├── README.md               # Project documentation
+├── assets/                 # Architectural diagrams & evaluation screenshots
+│   ├── figure1_gradcam_overlay.png
+│   └── figure2_system_ui.png
 ├── tools/
-│ ├── init.py # Tool registry
-│ ├── classifier_tool.py # Deep perception tool (MobileNetV2)
-│ ├── gradcam_engine.py # Standalone Grad-CAM visual attribution engine
-│ └── gradcam_tool.py # XAI tool wrapper for ReAct orchestration
+│   ├── __init__.py         # Tool registry
+│   ├── classifier_tool.py  # Deep perception tool (MobileNetV2)
+│   ├── gradcam_engine.py   # Standalone Grad-CAM visual attribution engine
+│   └── gradcam_tool.py     # XAI tool wrapper for ReAct orchestration
 └── outputs/
-└── .gitkeep # Target directory for generated saliency maps
-
+    └── .gitkeep             # Target directory for generated saliency maps
 
 ---
 

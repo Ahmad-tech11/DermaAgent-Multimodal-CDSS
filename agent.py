@@ -1,0 +1,497 @@
+"""
+agent.py — DermaAgent: ReAct Vision-Language Agent for Skin Lesion Diagnosis
+===============================================================================
+
+Implements a ReAct (Reasoning + Acting) agent using LangChain that orchestrates
+multimodal perception tools (MobileNetV2 classifier + Grad-CAM explainer)
+to produce trustworthy, interpretable skin lesion diagnostic reports.
+
+Architecture
+------------
+    Patient Query → LLM (ReAct Loop) → Tool Calls → Structured Report
+                         ↕                  ↕
+                    Thought/Reason    classifier_tool
+                                      gradcam_tool
+
+LLM Backend Support (via .env configuration):
+    - OpenAI API (GPT-4o / GPT-4o-mini)
+    - Alibaba Qwen API (qwen-plus / qwen-turbo)
+    - HuggingFace Inference API (free models)
+    - Ollama Local (llama3, mistral, etc.)
+    - Groq API (llama-3.1-70b)
+
+Author  : DermaAgent Assessment Module
+License : MIT
+"""
+
+import os
+import sys
+import logging
+from typing import Optional, Dict, Any
+
+from dotenv import load_dotenv
+
+# ---------------------------------------------------------------------------
+# Ensure parent package is importable
+# ---------------------------------------------------------------------------
+_AGENT_ROOT = os.path.dirname(os.path.abspath(__file__))
+if _AGENT_ROOT not in sys.path:
+    sys.path.insert(0, _AGENT_ROOT)
+
+# Load environment variables from .env file
+load_dotenv(os.path.join(_AGENT_ROOT, ".env"))
+
+# ---------------------------------------------------------------------------
+# Logging
+# ---------------------------------------------------------------------------
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s | %(name)s | %(levelname)s | %(message)s",
+    datefmt="%H:%M:%S",
+)
+logger = logging.getLogger("DermaAgent")
+
+# ---------------------------------------------------------------------------
+# Import Agent Tools
+# ---------------------------------------------------------------------------
+from tools.classifier_tool import skin_lesion_classifier
+from tools.gradcam_tool import gradcam_visual_explainer
+
+# Collect all tools for the agent
+AGENT_TOOLS = [skin_lesion_classifier, gradcam_visual_explainer]
+
+# ---------------------------------------------------------------------------
+# Agent System Prompt — Senior Dermatological AI Consultant Persona
+# ---------------------------------------------------------------------------
+SYSTEM_PROMPT = """You are **DermaAgent**, a Senior Multimodal Dermatological AI Consultant.
+You are an expert AI system that combines deep learning-based visual perception with
+clinical reasoning to produce structured, clinically authoritative skin lesion
+diagnostic assessments suitable for integration into EHR and PACS workflows.
+
+## Capabilities
+You have access to the following perception tools:
+1. **skin_lesion_classifier** — Classifies a skin lesion image using a MobileNetV2-based
+   8-class dermatological diagnostic model. Returns Top-3 predictions with confidence
+   scores and clinical severity assessment.
+2. **gradcam_visual_explainer** — Generates a Grad-CAM saliency heatmap showing which
+   regions of the image the model focused on. Returns interpretability analysis.
+
+## Diagnostic Protocol (MANDATORY)
+For EVERY patient image analysis request, you MUST follow this exact protocol:
+
+### Step 1: Classification
+- Call `skin_lesion_classifier` with the provided image path.
+- Analyze the Top-3 predictions and confidence distribution.
+- Note if confidence is below 70% (uncertain prediction).
+
+### Step 2: Visual Interpretability Verification
+- Call `gradcam_visual_explainer` with the image path and the TOP predicted class index.
+- Verify that the model's attention aligns with clinically relevant skin lesion regions.
+- Check if attention is on the lesion vs. artifacts/background/ruler marks.
+
+### Step 3: Generate Structured Clinical Report
+Produce a comprehensive report with these EXACT sections:
+
+```
+DERMAAGENT CLINICAL DIAGNOSTIC REPORT
+
+SECTION I: CLINICAL INDICATION & PRESENTING COMPLAINT
+   [Summarize the clinical question and presenting complaint]
+
+SECTION II: QUANTITATIVE CLASSIFICATION & DIFFERENTIALS
+   Primary Diagnosis: [Disease Name] ([abbreviation])
+   Confidence: [X]%
+   Differential Diagnoses: [2nd and 3rd predictions with confidence]
+
+SECTION III: STATISTICAL CONFIDENCE & FEATURE GAP ANALYSIS
+   [Analyze prediction certainty, inter-class margin, and distribution]
+
+SECTION IV: SALIENCY LOCALIZATION & MORPHOLOGICAL CORRELATION (Grad-CAM)
+   Attention Region: [Where the model looked]
+   Concentration: [Focused/Moderate/Diffuse]
+   Clinical Alignment: [Whether attention matches expected morphological patterns]
+   [Detailed interpretation of the Grad-CAM findings]
+
+SECTION V: CLINICAL TRIAGE & INTERVENTION PROTOCOL
+   Severity: [LOW/MODERATE/HIGH/CRITICAL]
+   Recommended Action: [Recommended clinical next steps]
+
+SECTION VI: REGULATORY & MEDICOLEGAL DISCLAIMER
+   This report is generated by an AI-assisted screening system and does not
+   constitute a clinical diagnosis. All findings require independent verification
+   by a board-certified dermatologist. Treatment decisions must not be based
+   solely on the contents of this report.
+```
+
+## Clinical Guidelines
+- Always use BOTH tools for every analysis — classification AND Grad-CAM.
+- Be explicit about uncertainty — if confidence < 50%, flag this prominently.
+- Never claim to be a replacement for a dermatologist.
+- Use precise clinical and dermatological terminology throughout.
+- Maintain an objective, authoritative clinical tone.
+"""
+
+
+# ---------------------------------------------------------------------------
+# LLM Configuration Factory
+# ---------------------------------------------------------------------------
+
+def _create_llm(
+    provider: Optional[str] = None,
+    model_name: Optional[str] = None,
+    temperature: float = 0.1,
+) -> Any:
+    """
+    Create an LLM instance based on configuration.
+
+    Each provider is wrapped in individual try/except ImportError guards
+    so a missing optional package (e.g. langchain-ollama) does not crash
+    the entire system.
+
+    Priority Order:
+        1. Explicit ``provider`` / ``model_name`` arguments
+        2. ``LLM_PROVIDER`` and ``LLM_MODEL`` env vars
+        3. Auto-detect from available API keys
+        4. Ollama local fallback
+
+    Parameters
+    ----------
+    provider : str, optional
+        LLM provider: 'openai', 'qwen', 'groq', 'huggingface', 'ollama'.
+    model_name : str, optional
+        Specific model name/ID.
+    temperature : float, optional
+        Sampling temperature. Default is 0.1 (deterministic).
+
+    Returns
+    -------
+    BaseChatModel
+        A LangChain chat model instance.
+    """
+    # Resolve provider from args or env
+    provider = provider or os.environ.get("LLM_PROVIDER", "").lower()
+    model_name = model_name or os.environ.get("LLM_MODEL", "")
+
+    errors_encountered: list = []
+
+    # ------- OpenAI -------
+    if provider == "openai" or os.environ.get("OPENAI_API_KEY"):
+        api_key = os.environ.get("OPENAI_API_KEY", "")
+        if api_key:
+            try:
+                from langchain_openai import ChatOpenAI
+                model = model_name or "gpt-4o-mini"
+                logger.info("Using OpenAI LLM: %s", model)
+                return ChatOpenAI(
+                    model=model,
+                    temperature=temperature,
+                    api_key=api_key,
+                )
+            except ImportError:
+                errors_encountered.append(
+                    "OpenAI: 'langchain-openai' not installed. "
+                    "Run: pip install langchain-openai"
+                )
+                logger.warning("langchain-openai not installed, skipping OpenAI.")
+
+    # ------- Qwen (Alibaba DashScope) -------
+    if provider == "qwen" or os.environ.get("DASHSCOPE_API_KEY"):
+        api_key = os.environ.get("DASHSCOPE_API_KEY", "")
+        if api_key:
+            try:
+                from langchain_openai import ChatOpenAI
+                model = model_name or "qwen-plus"
+                logger.info("Using Qwen LLM: %s", model)
+                return ChatOpenAI(
+                    model=model,
+                    temperature=temperature,
+                    api_key=api_key,
+                    base_url="https://dashscope.aliyuncs.com/compatible-mode/v1",
+                )
+            except ImportError:
+                errors_encountered.append(
+                    "Qwen: 'langchain-openai' not installed. "
+                    "Run: pip install langchain-openai"
+                )
+                logger.warning("langchain-openai not installed, skipping Qwen.")
+
+    # ------- Groq (Fast Inference — free tier available) -------
+    if provider == "groq" or os.environ.get("GROQ_API_KEY"):
+        api_key = os.environ.get("GROQ_API_KEY", "")
+        if api_key:
+            try:
+                from langchain_groq import ChatGroq
+                model = model_name or os.environ.get("LLM_MODEL", "openai/gpt-oss-20b")
+                logger.info("Using Groq LLM: %s", model)
+                return ChatGroq(
+                    model_name=model,
+                    api_key=api_key,
+                    temperature=temperature,
+                    max_retries=3,
+                )
+            except ImportError:
+                errors_encountered.append(
+                    "Groq: 'langchain-groq' not installed. "
+                    "Run: pip install langchain-groq"
+                )
+                logger.warning("langchain-groq not installed, skipping Groq.")
+            except Exception as e:
+                err_msg = f"Groq ({type(e).__name__}): {e}"
+                errors_encountered.append(err_msg)
+                logger.warning(err_msg)
+
+    # ------- HuggingFace Inference API -------
+    if provider == "huggingface" or os.environ.get("HUGGINGFACEHUB_API_TOKEN"):
+        api_key = os.environ.get("HUGGINGFACEHUB_API_TOKEN", "")
+        if api_key:
+            try:
+                from langchain_huggingface import ChatHuggingFace, HuggingFaceEndpoint
+                model = model_name or "mistralai/Mistral-7B-Instruct-v0.3"
+                logger.info("Using HuggingFace LLM: %s", model)
+                llm = HuggingFaceEndpoint(
+                    repo_id=model,
+                    temperature=temperature,
+                    huggingfacehub_api_token=api_key,
+                )
+                return ChatHuggingFace(llm=llm)
+            except ImportError:
+                errors_encountered.append(
+                    "HuggingFace: 'langchain-huggingface' not installed. "
+                    "Run: pip install langchain-huggingface"
+                )
+                logger.warning("langchain-huggingface not installed, skipping HF.")
+
+    # ------- Ollama Local Fallback -------
+    # Only attempt if explicitly requested OR no other provider succeeded
+    try:
+        from langchain_ollama import ChatOllama
+        model = model_name or "llama3.2"
+        logger.info("Attempting Ollama local LLM: %s", model)
+        llm = ChatOllama(model=model, temperature=temperature)
+        # Quick smoke test: Ollama import succeeded, but the server may be down.
+        # We return the instance; it will fail at invocation time with a clear
+        # connection error if Ollama is not running (which is more informative
+        # than crashing here during import).
+        return llm
+    except ImportError:
+        errors_encountered.append(
+            "Ollama: 'langchain-ollama' not installed. "
+            "Run: pip install langchain-ollama"
+        )
+        logger.warning("langchain-ollama not installed, skipping Ollama.")
+    except Exception as e:
+        errors_encountered.append(f"Ollama: {type(e).__name__}: {e}")
+        logger.warning("Ollama not available: %s", e)
+
+    # ------- Nothing worked — provide actionable error -------
+    error_details = "\n  ".join(errors_encountered) if errors_encountered else "(none)"
+    raise RuntimeError(
+        "═══ LLM CONFIGURATION ERROR ═══\n"
+        "No LLM backend could be initialized.\n\n"
+        "Errors encountered:\n"
+        f"  {error_details}\n\n"
+        "To fix, do ONE of the following:\n"
+        "  1. pip install langchain-openai  (then set OPENAI_API_KEY or GROQ_API_KEY in .env)\n"
+        "  2. pip install langchain-ollama  (then run 'ollama serve' and 'ollama pull llama3.2')\n"
+        "  3. pip install langchain-huggingface  (then set HUGGINGFACEHUB_API_TOKEN in .env)\n\n"
+        "Quickest path: Get a free Groq API key at https://console.groq.com\n"
+        "  Then add to agent_system/.env:\n"
+        "    GROQ_API_KEY=gsk_your_key_here\n"
+        "    LLM_PROVIDER=groq\n"
+    )
+
+
+def get_llm(
+    provider: Optional[str] = None,
+    model_name: Optional[str] = None,
+    temperature: float = 0.1,
+) -> Any:
+    """Public helper function to instantiate an LLM instance."""
+    return _create_llm(provider=provider, model_name=model_name, temperature=temperature)
+
+
+# ---------------------------------------------------------------------------
+# Agent Factory
+# ---------------------------------------------------------------------------
+
+def create_agent(
+    provider: Optional[str] = None,
+    model_name: Optional[str] = None,
+    verbose: bool = True,
+) -> Any:
+    """
+    Create and configure the DermaAgent ReAct agent.
+
+    Parameters
+    ----------
+    provider : str, optional
+        LLM provider override.
+    model_name : str, optional
+        LLM model name override.
+    verbose : bool, optional
+        Enable verbose agent logging (shows Thought/Action/Observation).
+
+    Returns
+    -------
+    AgentExecutor
+        Configured LangChain agent executor ready for invocation.
+    """
+    try:
+        from langchain.agents import AgentExecutor, create_react_agent
+    except ImportError:
+        try:
+            from langchain_classic.agents import AgentExecutor, create_react_agent
+        except ImportError:
+            from langchain.agents.agent import AgentExecutor, create_react_agent
+
+    from langchain_core.prompts import PromptTemplate
+
+    # ---- Create LLM ----
+    llm = _create_llm(provider=provider, model_name=model_name)
+
+    # ---- Define ReAct Prompt Template ----
+    # This template structures the agent's reasoning loop
+    react_template = """Answer the following questions as best you can. You have access to the following tools:
+
+{tools}
+
+Use the following format:
+
+Question: the input question you must answer
+Thought: you should always think about what to do
+Action: the action to take, should be one of [{tool_names}]
+Action Input: the input to the action
+Observation: the result of the action
+... (this Thought/Action/Action Input/Observation can repeat N times)
+Thought: I now know the final answer
+Final Answer: the final answer to the original input question
+
+IMPORTANT SYSTEM INSTRUCTIONS:
+""" + SYSTEM_PROMPT + """
+
+Begin!
+
+Question: {input}
+Thought:{agent_scratchpad}"""
+
+    prompt = PromptTemplate.from_template(react_template)
+
+    # ---- Create ReAct Agent ----
+    agent = create_react_agent(
+        llm=llm,
+        tools=AGENT_TOOLS,
+        prompt=prompt,
+    )
+
+    # ---- Wrap in AgentExecutor ----
+    agent_executor = AgentExecutor(
+        agent=agent,
+        tools=AGENT_TOOLS,
+        verbose=verbose,
+        handle_parsing_errors=True,
+        max_iterations=10,
+        return_intermediate_steps=True,
+        early_stopping_method="generate",
+    )
+
+    logger.info("DermaAgent initialized successfully with %d tools.", len(AGENT_TOOLS))
+    return agent_executor
+
+
+# ---------------------------------------------------------------------------
+# Agent Invocation Helper
+# ---------------------------------------------------------------------------
+
+def run_agent(
+    query: str,
+    image_path: Optional[str] = None,
+    provider: Optional[str] = None,
+    model_name: Optional[str] = None,
+    verbose: bool = True,
+) -> Dict[str, Any]:
+    """
+    Run the DermaAgent on a patient query.
+
+    Parameters
+    ----------
+    query : str
+        The patient's question or analysis request.
+    image_path : str, optional
+        Path to the skin lesion image. If provided, it is prepended
+        to the query for context.
+    provider : str, optional
+        LLM provider override.
+    model_name : str, optional
+        LLM model override.
+    verbose : bool, optional
+        Enable verbose output.
+
+    Returns
+    -------
+    result : dict
+        Dictionary with keys:
+        - ``output``: The agent's final answer (diagnostic report).
+        - ``intermediate_steps``: List of (action, observation) tuples
+          showing the Thought/Action/Observation loop.
+    """
+    # Construct the full query
+    if image_path:
+        full_query = (
+            f"Please analyze the following skin lesion image and provide a "
+            f"comprehensive diagnostic assessment.\n"
+            f"Image path: {image_path}\n"
+            f"Patient query: {query}"
+        )
+    else:
+        full_query = query
+
+    logger.info("=" * 60)
+    logger.info("DERMAAGENT ANALYSIS REQUEST")
+    logger.info("Query: %s", query[:100])
+    if image_path:
+        logger.info("Image: %s", image_path)
+    logger.info("=" * 60)
+
+    # Create and run agent
+    agent_executor = create_agent(
+        provider=provider,
+        model_name=model_name,
+        verbose=verbose,
+    )
+
+    result = agent_executor.invoke({"input": full_query})
+
+    logger.info("DermaAgent analysis complete.")
+    return result
+
+
+# ---------------------------------------------------------------------------
+# Entry Point
+# ---------------------------------------------------------------------------
+
+if __name__ == "__main__":
+    """
+    Quick test of agent creation and tool availability.
+    """
+    print("=" * 60)
+    print("DermaAgent — System Check")
+    print("=" * 60)
+
+    # List available tools
+    print("\nRegistered Tools:")
+    for t in AGENT_TOOLS:
+        print(f"  ✓ {t.name}: {t.description[:80]}...")
+
+    # Check LLM configuration
+    print("\nLLM Configuration:")
+    for key in ["LLM_PROVIDER", "LLM_MODEL", "OPENAI_API_KEY", "DASHSCOPE_API_KEY",
+                "GROQ_API_KEY", "HUGGINGFACEHUB_API_TOKEN"]:
+        val = os.environ.get(key, "")
+        if val:
+            display = val[:8] + "..." if len(val) > 8 else val
+            print(f"  {key} = {display}")
+        else:
+            print(f"  {key} = (not set)")
+
+    print("\n✓ DermaAgent system check complete.")
+    print("  Run 'python demo.py' to start the interactive demo.")

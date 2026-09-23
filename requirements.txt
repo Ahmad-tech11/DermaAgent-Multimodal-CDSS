@@ -1,0 +1,25 @@
+# ============================================================
+# DermaAgent — Dependencies
+# ============================================================
+# Core ML & Vision (TensorFlow-based, matching Backend)
+tensorflow>=2.15.0
+tensorflow-hub>=0.15.0
+opencv-python>=4.8.0
+Pillow>=10.0.0
+numpy>=1.24.0
+
+# LLM Agent Framework
+langchain>=0.3.0
+langchain-core>=0.3.0
+langchain-community>=0.3.0
+langchain-openai>=0.2.0
+
+# Optional LLM Backends (install as needed)
+# langchain-ollama>=0.2.0       # For Ollama local models
+# langchain-huggingface>=0.1.0  # For HuggingFace models
+
+# Web UI
+gradio>=4.0.0
+
+# Utilities
+python-dotenv>=1.0.0

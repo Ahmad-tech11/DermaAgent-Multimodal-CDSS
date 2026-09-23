@@ -163,28 +163,25 @@ python demo.py --cli --image path/to/lesion.png
 
 ---
 
-### 2. Project Structure
-
-```markdown
 ## Project Structure
 
-```text
 DermaAgent-Multimodal-CDSS/
-├── agent.py               # LangChain ReAct agent & prompt engineering
-├── demo.py                # Dual-mode Gradio interface and CLI harness
-├── requirements.txt       # Production dependencies
-├── .env.example           # Environment template
-├── README.md              # Project documentation
-├── assets/                # Architectural diagrams & evaluation screenshots
-│   ├── figure1_gradcam_overlay.png
-│   └── figure2_system_ui.png
+├── agent.py # LangChain ReAct agent & prompt engineering
+├── demo.py # Dual-mode Gradio interface and CLI harness
+├── requirements.txt # Production dependencies
+├── .env.example # Environment template
+├── README.md # Project documentation
+├── assets/ # Architectural diagrams & evaluation screenshots
+│ ├── figure1_gradcam_overlay.png
+│ └── figure2_system_ui.png
 ├── tools/
-│   ├── __init__.py        # Tool registry
-│   ├── classifier_tool.py # Deep perception tool (MobileNetV2)
-│   ├── gradcam_engine.py  # Standalone Grad-CAM visual attribution engine
-│   └── gradcam_tool.py    # XAI tool wrapper for ReAct orchestration
+│ ├── init.py # Tool registry
+│ ├── classifier_tool.py # Deep perception tool (MobileNetV2)
+│ ├── gradcam_engine.py # Standalone Grad-CAM visual attribution engine
+│ └── gradcam_tool.py # XAI tool wrapper for ReAct orchestration
 └── outputs/
-    └── .gitkeep           # Target directory for generated saliency maps
+└── .gitkeep # Target directory for generated saliency maps
+
 
 ---
 

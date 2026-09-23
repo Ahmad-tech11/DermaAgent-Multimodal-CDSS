@@ -1,265 +1,216 @@
 # 🔬 DermaAgent
 
-**Multimodal Vision-Language Agent for Autonomous Skin Lesion Diagnosis & Saliency-Grounded Interpretability**
+**Autonomous Multimodal Vision-Language Architecture for Saliency-Grounded Dermatological Decision Support**
 
-> A ReAct (Reasoning + Acting) agent that orchestrates deep learning perception tools — MobileNetV2 classification and Grad-CAM visual explainability — to produce trustworthy, interpretable skin lesion diagnostic reports.
+> An interpretable clinical decision support system (CDSS) that couples a deep convolutional neural network (MobileNetV2) with self-implemented Gradient-weighted Class Activation Mapping (Grad-CAM) and a symbolic ReAct (Reasoning + Acting) LLM agent to generate structured, audit-ready Electronic Health Record (EHR) diagnostic reports.
 
 ---
 
 ## 📋 Table of Contents
 
 - [Overview](#overview)
-- [Architecture](#architecture)
+- [System Demonstration](#system-demonstration)
+- [Clinical Taxonomy (8-Class Space)](#clinical-taxonomy-8-class-space)
+- [Architecture & Workflow](#architecture--workflow)
+- [Empirical Validation & Results](#empirical-validation--results)
 - [Quick Start](#quick-start)
-- [Usage](#usage)
 - [Project Structure](#project-structure)
-- [Configuration](#configuration)
-- [Supported LLM Backends](#supported-llm-backends)
-- [Technical Details](#technical-details)
+- [Technical Grounding](#technical-grounding)
+- [Citation & Metadata](#citation--metadata)
+- [Disclaimer](#disclaimer)
 
 ---
 
 ## Overview
 
-DermaAgent is a multimodal large model agent system that combines:
+Traditional computer-aided diagnosis (CAD) pipelines suffer from **black-box opacity** and lack clinical reasoning capabilities. DermaAgent resolves both bottlenecks through a tripartite multimodal design:
 
-1. **MobileNetV2 Classifier** — Deep CNN for 7-class dermoscopic skin lesion classification (HAM10000 dataset)
-2. **Grad-CAM Engine** — Custom-implemented Gradient-weighted Class Activation Mapping for visual interpretability
-3. **LLM ReAct Agent** — LangChain-based reasoning agent that orchestrates tools and generates structured clinical reports
-
-### Supported Skin Lesion Classes (HAM10000)
-
-| Index | Abbreviation | Full Name | Severity |
-|:-----:|:------------:|:----------|:--------:|
-| 0 | akiec | Actinic Keratoses | ⚠️ Moderate |
-| 1 | bcc | Basal Cell Carcinoma | 🔴 High |
-| 2 | bkl | Benign Keratosis-like Lesions | 🟢 Low |
-| 3 | df | Dermatofibroma | 🟢 Low |
-| 4 | mel | Melanoma | 🔴 Critical |
-| 5 | nv | Melanocytic Nevi | 🟢 Low |
-| 6 | vasc | Vascular Lesions | 🟢 Low |
+1. **Perception Engine** — a lightweight MobileNetV2 backbone fine-tuned over an 8-class dermatological diagnostic space to yield calibrated prediction probabilities.
+2. **Explainability Engine (XAI)** — a self-implemented Grad-CAM engine computing spatial gradient attributions, argmax peak coordinates, anatomical sector categorization, and area coverage ratio ($C_{>0.5}$).
+3. **Agentic Orchestration (ReAct)** — a LangChain-powered closed-loop ReAct (Reasoning + Acting) orchestrator enforcing a mandatory two-stage diagnostic protocol before synthesizing standardized clinical assessments.
 
 ---
 
-## Architecture
+## System Demonstration
 
-```
-┌─────────────────────────────────────────────────────────┐
-│                    Patient Query + Image                 │
-└────────────────────────┬────────────────────────────────┘
-                         │
-                         ▼
-┌─────────────────────────────────────────────────────────┐
-│              DermaAgent (ReAct LLM Agent)               │
-│  ┌───────────────────────────────────────────────────┐  │
-│  │  Thought → Action → Observation → ... → Answer    │  │
-│  └───────────────────────────────────────────────────┘  │
-│         │                           │                    │
-│         ▼                           ▼                    │
-│  ┌──────────────┐          ┌──────────────────┐         │
-│  │  Classifier   │          │  Grad-CAM Tool    │        │
-│  │  Tool         │          │  (Explainability) │        │
-│  │  (MobileNetV2)│          │                   │        │
-│  └──────┬───────┘          └────────┬──────────┘        │
-│         │                           │                    │
-│         ▼                           ▼                    │
-│  Top-3 Diagnosis            Saliency Heatmap            │
-│  + Confidence               + Region Analysis           │
-│  + Severity                 + Clinical Alignment        │
-└────────────────────────┬────────────────────────────────┘
-                         │
-                         ▼
-            ┌────────────────────────┐
-            │  Structured Clinical   │
-            │  Diagnostic Report     │
-            └────────────────────────┘
-```
+### 1. Grad-CAM Attention Alignment (Figure 1)
+
+Spatial visual attribution map verifying that deep feature activations correlate with active morphological pathology (scaly, erythematous margins) rather than spurious background artifacts.
+
+<p align="center">
+  <img src="assets/figure1_gradcam_overlay.png" alt="Figure 1: Input Dermoscopic Image and Grad-CAM Saliency Overlay" width="700"/>
+  <br>
+  <em>Figure 1: Input dermoscopic lesion (left) and Grad-CAM visual feature attribution map (right), with peak localization at (182, 143) px.</em>
+</p>
+
+### 2. Autonomous Decision Support Interface (Figure 2)
+
+End-to-end clinical workflow: image acquisition, real-time visual saliency rendering, the agent's step-by-step reasoning trace, and the synthesized EHR-formatted diagnostic report.
+
+<p align="center">
+  <img src="assets/figure2_system_ui.png" alt="Figure 2: DermaAgent Gradio Decision Support System" width="850"/>
+  <br>
+  <em>Figure 2: End-to-end Gradio decision-support interface displaying the autonomous reasoning trace and synthesized clinical findings.</em>
+</p>
+
+---
+
+## Clinical Taxonomy (8-Class Space)
+
+The custom classification head maps deep inverted-residual features ($\mathbb{R}^{1280}$) to an 8-class diagnostic taxonomy:
+
+| Index | Abbr. | Diagnostic Class | Etiological Nature | Typical Severity |
+|:-----:|:-----:|:-----------------|:-------------------|:-----------------:|
+| 0 | **cp** | Chickenpox | Varicella-zoster viral infection | ⚠️ Moderate |
+| 1 | **clm** | Cutaneous Larva Migrans | Parasitic hookworm skin eruption | ⚠️ Moderate |
+| 2 | **af** | Athlete Foot (*Tinea pedis*) | Superficial fungal dermatophytosis | ⚠️ Moderate |
+| 3 | **imp** | Impetigo | Superficial bacterial pyoderma | ⚠️ Moderate |
+| 4 | **nf** | Nail Fungus (*Onychomycosis*) | Subungual fungal invasion | 🟢 Low / Moderate |
+| 5 | **cel** | Cellulitis | Deep bacterial dermis/subcutis infection | 🔴 High (Urgent) |
+| 6 | **sh** | Shingles (*Herpes zoster*) | Viral reactivation / dermatomal neuropathy | 🔴 High |
+| 7 | **rw** | Ringworm (*Tinea corporis*) | Annular fungal lesion | ⚠️ Moderate |
+
+*Severity labels are general clinical triage categories used by the system's design, not per-class empirical test results — only Athlete Foot (index 2) has a validated test run so far (see below).*
+
+---
+
+## Architecture & Workflow
+┌─────────────────────────────────────────────────────────────┐
+│ Patient Query + Lesion Image │
+└──────────────────────────────┬────────────────────────────────┘
+│
+▼
+┌─────────────────────────────────────────────────────────────┐
+│ DermaAgent (LangChain ReAct Agent) │
+│ ┌───────────────────────────────────────────────────────┐ │
+│ │ Thought_t → Action_t → Observation_t → ... → Report │ │
+│ └───────────────────────────────────────────────────────┘ │
+│ │ │ │
+│ ▼ ▼ │
+│ ┌────────────────────────┐ ┌─────────────────────────┐ │
+│ │ skin_lesion_classifier │ │ gradcam_visual_explainer │ │
+│ │ (MobileNetV2 Backbone) │ │ (Target Class Gradient) │ │
+│ └────────────┬───────────┘ └────────────┬──────────────┘ │
+│ │ │ │
+│ ▼ ▼ │
+│ Top-3 Ranked Differentials Spatial Saliency Metric │
+│ + Logit Confidence Margin Peak (x, y) + Area C>0.5 │
+└──────────────────────────────┬────────────────────────────────┘
+│
+▼
+┌─────────────────────────────────────────────────────────────┐
+│ Structured 6-Section EHR Clinical Diagnostic Assessment │
+│ • Section I — Clinical Indication & Query Formulation │
+│ • Section II — Quantitative Classification & Differentials │
+│ • Section III — Statistical Confidence & Gap Margin Analysis │
+│ • Section IV — Saliency Localization & Morphological Match │
+│ • Section V — Clinical Triage & Pharmacological Protocol │
+│ • Section VI — Regulatory & Medicolegal Disclaimer │
+└─────────────────────────────────────────────────────────────┘
+
+---
+
+## Empirical Validation & Results
+
+Live end-to-end run on a representative dermoscopic test image (`_uploaded_image.png`):
+
+- **Primary Classification**: Athlete Foot (`af`) — **97.5% confidence**
+- **Differential Diagnoses**: Cutaneous Larva Migrans (1.8%), Ringworm (0.3%)
+- **Inter-Class Margin**: ΔP = 97.5% − 1.8% = **95.7%**
+- **Peak Activation Coordinates**: `(182, 143) px` (center-right anatomical sector), peak intensity 0.6596
+- **Area Coverage Ratio ($C_{>0.5}$)**: **10.9%** — categorized as *Highly Focused*
+
+Full methodology, mathematical derivations, and the complete synthesized EHR report are documented in `DermaAgent_Academic_Technical_Report_Muhammad_Ahmad.pdf`.
 
 ---
 
 ## Quick Start
 
-### 1. Prerequisites
-
-- Python 3.9+
-- pip (Python package manager)
-
-### 2. Install Dependencies
+### 1. Installation
 
 ```bash
-cd agent_system
+git clone https://github.com/Ahmad-tech11/DermaAgent-Multimodal-CDSS.git
+cd DermaAgent-Multimodal-CDSS
+
 pip install -r requirements.txt
 ```
 
-### 3. Configure LLM Backend
+### 2. Environment Setup
 
 ```bash
-# Copy the environment template
 cp .env.example .env
-
-# Edit .env with your preferred LLM API key
-# Example for OpenAI:
-#   OPENAI_API_KEY=sk-your-key-here
-#   LLM_PROVIDER=openai
-#   LLM_MODEL=gpt-4o-mini
 ```
 
-### 4. (Optional) Custom Model Weights
+Add your LLM inference credentials:
 
-If you have trained MobileNetV2 weights:
-```bash
-# Place your weights file at:
-mkdir -p model
-cp /path/to/your/weights.pth model/derma_mobilenetv2.pth
-
-# Or set the environment variable:
-# DERMA_MODEL_WEIGHTS=/path/to/weights.pth
+```ini
+LLM_PROVIDER=groq
+LLM_MODEL=qwen/qwen3.8-27b
+GROQ_API_KEY=gsk_your_groq_api_key_here
 ```
 
-> **Note**: If no custom weights are provided, the system gracefully falls back to a pretrained ImageNet backbone for immediate testing.
-
-### 5. Run
+### 3. Launch System
 
 ```bash
-# Option A: Gradio Web UI (recommended)
+# Interactive Gradio web application
 python demo.py
 
-# Option B: CLI mode
-python demo.py --cli --image path/to/skin_lesion.jpg
-```
-
----
-
-## Usage
-
-### Gradio Web UI
-
-```bash
-python demo.py                     # Default port 7860
-python demo.py --port 8080         # Custom port
-python demo.py --share             # Public share link
-python demo.py --provider openai   # Force OpenAI backend
-```
-
-Open `http://localhost:7860` in your browser. Upload a skin lesion image, optionally type a query, and click **Analyze with DermaAgent**.
-
-The UI displays:
-- **Original Image** — The uploaded skin lesion
-- **Grad-CAM Heatmap** — Saliency overlay showing model attention
-- **Agent Reasoning Trace** — Step-by-step Thought/Action/Observation log
-- **Diagnostic Report** — Structured clinical assessment
-
-### CLI Mode
-
-```bash
-# Basic analysis
-python demo.py --cli --image dermoscopy_sample.jpg
-
-# Custom query
-python demo.py --cli --image lesion.jpg --query "Is this melanoma?"
-
-# Specify LLM
-python demo.py --cli --image lesion.jpg --provider groq --model llama-3.1-70b-versatile
-```
-
-### Python API
-
-```python
-from agent import run_agent
-
-result = run_agent(
-    query="Analyze this suspicious mole.",
-    image_path="skin_lesion.jpg",
-    provider="openai",
-    model_name="gpt-4o-mini",
-)
-
-print(result["output"])  # Final diagnostic report
+# Headless CLI inference
+python demo.py --cli --image path/to/lesion.png
 ```
 
 ---
 
 ## Project Structure
 
-```
-agent_system/
-├── __init__.py                 # Package initialization
-├── agent.py                    # ReAct agent with LangChain
-├── demo.py                     # CLI + Gradio Web UI demo
-├── requirements.txt            # Python dependencies
-├── .env.example                # Environment variable template
-├── .env                        # Your local configuration (git-ignored)
-├── README.md                   # This file
-├── TECHNICAL_REPORT.md         # Academic technical report
+DermaAgent-Multimodal-CDSS/
+├── agent.py # LangChain ReAct agent & prompt engineering
+├── demo.py # Dual-mode Gradio interface and CLI harness
+├── requirements.txt # Production dependencies
+├── .env.example # Environment template
+├── README.md # Project documentation
+├── assets/ # Architectural diagrams & evaluation screenshots
+│ ├── figure1_gradcam_overlay.png
+│ └── figure2_system_ui.png
 ├── tools/
-│   ├── __init__.py             # Tools package init
-│   ├── gradcam_engine.py       # Core Grad-CAM implementation (PyTorch)
-│   ├── classifier_tool.py      # MobileNetV2 classifier (LangChain tool)
-│   └── gradcam_tool.py         # Grad-CAM wrapper (LangChain tool)
-├── model/                      # Model weights directory (optional)
-│   └── derma_mobilenetv2.pth   # Custom trained weights
-├── outputs/                    # Generated heatmaps and results
-│   └── cam_*.png               # Grad-CAM overlay images
-└── samples/                    # Sample test images (optional)
-```
+│ ├── init.py # Tool registry
+│ ├── classifier_tool.py # Deep perception tool (MobileNetV2)
+│ ├── gradcam_engine.py # Standalone Grad-CAM visual attribution engine
+│ └── gradcam_tool.py # XAI tool wrapper for ReAct orchestration
+└── outputs/
+└── .gitkeep # Target directory for generated saliency maps
+
 
 ---
 
-## Configuration
+## Technical Grounding
 
-### Environment Variables
+### 1. Saliency Weighting (Grad-CAM)
 
-| Variable | Description | Example |
-|----------|-------------|---------|
-| `LLM_PROVIDER` | LLM backend | `openai`, `qwen`, `groq`, `ollama` |
-| `LLM_MODEL` | Model name | `gpt-4o-mini`, `qwen-plus` |
-| `OPENAI_API_KEY` | OpenAI API key | `sk-...` |
-| `DASHSCOPE_API_KEY` | Alibaba Qwen key | `sk-...` |
-| `GROQ_API_KEY` | Groq API key | `gsk_...` |
-| `HUGGINGFACEHUB_API_TOKEN` | HuggingFace token | `hf_...` |
-| `DERMA_MODEL_WEIGHTS` | Custom model path | `model/weights.pth` |
+$$\alpha_k^c = \frac{1}{Z} \sum_{i} \sum_{j} \frac{\partial Y^c}{\partial A_{ij}^k}$$
 
----
+$$L_{\text{Grad-CAM}}^c = \text{ReLU}\left( \sum_{k} \alpha_k^c A^k \right)$$
 
-## Supported LLM Backends
+### 2. Saliency Concentration Metric ($C_{>0.5}$)
 
-| Provider | Models | API Key Env Var |
-|----------|--------|-----------------|
-| **OpenAI** | GPT-4o, GPT-4o-mini | `OPENAI_API_KEY` |
-| **Qwen** | qwen-plus, qwen-turbo | `DASHSCOPE_API_KEY` |
-| **Groq** | llama-3.1-70b, mixtral | `GROQ_API_KEY` |
-| **HuggingFace** | Mistral-7B, etc. | `HUGGINGFACEHUB_API_TOKEN` |
-| **Ollama** | llama3.2, mistral (local) | No key needed |
+$$C_{>0.5} = \frac{1}{N_{\text{total}}} \sum_{u} \sum_{v} \mathbb{I}\left[ L_{\text{norm}}^c(u, v) > 0.5 \right] \times 100\%$$
 
-The system auto-detects available backends from your `.env` configuration. Priority: OpenAI → Qwen → Groq → HuggingFace → Ollama.
+- **Highly Focused**: $C_{>0.5} < 15\%$
+- **Moderately Focused**: $15\% \le C_{>0.5} < 35\%$
+- **Diffuse Attention / Artifact Suspect**: $C_{>0.5} \ge 35\%$
 
 ---
 
-## Technical Details
+## Citation & Metadata
 
-### Grad-CAM Implementation
-
-The Grad-CAM engine (`tools/gradcam_engine.py`) is implemented from scratch in PyTorch:
-
-1. **Forward Hook**: Captures activation maps from `model.features[-1]` (MobileNetV2's final convolutional block)
-2. **Backward Hook**: Captures gradients flowing back through the target layer
-3. **Importance Weights**: Global average pooling of gradients → channel importance weights α_k
-4. **Weighted Combination**: Σ_k(α_k · A^k) — weighted sum of activation maps
-5. **ReLU**: Retains only positive contributions
-6. **Normalization**: Scale to [0, 1] range
-7. **Overlay**: Resize to input dimensions, apply JET colormap, blend with original image
-
-### MobileNetV2 Architecture
-
-- **Backbone**: Pretrained on ImageNet (1.4M images, 1000 classes)
-- **Classifier Head**: Modified to 7 outputs for HAM10000 skin lesion classes
-- **Input**: 224×224 RGB, normalized with ImageNet statistics
-- **Inference**: Softmax → Top-K predictions with confidence scores
+- **Author**: Muhammad Ahmad
+- **Affiliation**: Department of Computer Science, COMSATS University Islamabad
+- **Repository**: [Ahmad-tech11/DermaAgent-Multimodal-CDSS](https://github.com/Ahmad-tech11/DermaAgent-Multimodal-CDSS)
+- **Document Reference**: `DermaAgent_Academic_Technical_Report_Muhammad_Ahmad.pdf`
+- **Supported Backends**: Groq Cloud API (`qwen/qwen3.8-27b`)
 
 ---
 
 ## ⚠️ Disclaimer
 
-This system is designed for **research and educational purposes only**. It is NOT a certified medical device and should NOT be used for actual clinical diagnosis. All AI-generated findings must be validated by qualified healthcare professionals.
-
----
+DermaAgent is developed strictly for **academic evaluation and decision-support research**. It is not certified as a standalone medical diagnostic device. Final therapeutic interventions must be determined by a qualified dermatologist.
